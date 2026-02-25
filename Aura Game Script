@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOLS RNG - Aura Adventure</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --panel: rgba(10,10,20,0.92);
+    --border: rgba(255,255,255,0.08);
+    --gold: #ffd700;
+    --cyan: #00e5ff;
+    --purple: #b026ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: #fff;
+    font-family: 'Rajdhani', sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    user-select: none;
+  }
+
+  #canvas3d {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+  }
+
+  /* HUD */
+  #hud {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  /* Top Bar */
+  #topbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+    pointer-events: all;
+  }
+
+  .logo {
+    font-family: 'Orbitron', monospace;
+    font-size: 28px;
+    font-weight: 900;
+    background: linear-gradient(135deg, #ffd700, #ff6b00, #ff00aa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 4px;
+    text-shadow: none;
+    filter: drop-shadow(0 0 20px rgba(255,160,0,0.6));
+  }
+
+  .stat-group {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+
+  .stat-pill {
+    background: rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .stat-pill .icon { font-size: 16px; }
+  .stat-pill .val { color: var(--gold); font-family: 'Orbitron', monospace; }
+
+  /* Roll Button Area */
+  #rollarea {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    pointer-events: all;
+  }
+
+  #rollbtn {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    background: conic-gradient(from 0deg, #ff0080, #ff6600, #ffdd00, #00ff88, #00aaff, #aa00ff, #ff0080);
+    animation: spinRing 4s linear infinite;
+    box-shadow: 0 0 40px rgba(255,100,0,0.5), 0 0 80px rgba(200,0,255,0.3);
+    transition: transform 0.1s, box-shadow 0.3s;
+  }
+
+  #rollbtn::before {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #1a1a2e, #0d0d1a);
+    z-index: 1;
+  }
+
+  #rollbtn:hover { transform: scale(1.06); box-shadow: 0 0 60px rgba(255,150,0,0.7), 0 0 120px rgba(200,0,255,0.5); }
+  #rollbtn:active { transform: scale(0.96); }
+
+  #rollbtn .btn-inner {
+    position: absolute;
+    inset: 6px;
+    border-radius: 50%;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .roll-text {
+    font-family: 'Orbitron', monospace;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #fff;
+    text-shadow: 0 0 20px rgba(255,200,0,0.8);
+  }
+
+  .roll-sub { font-size: 11px; color: rgba(255,255,255,0.5); letter-spacing: 1px; }
+
+  @keyframes spinRing {
+    from { filter: hue-rotate(0deg) drop-shadow(0 0 8px rgba(255,200,0,0.6)); }
+    to { filter: hue-rotate(360deg) drop-shadow(0 0 8px rgba(255,200,0,0.6)); }
+  }
+
+  #autoroll-wrap {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .auto-btn {
+    background: rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    padding: 8px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+  }
+  .auto-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--cyan); color: var(--cyan); }
+  .auto-btn.active { background: rgba(0,229,255,0.15); border-color: var(--cyan); color: var(--cyan); }
+
+  /* Current Aura Display */
+  #aura-display {
+    position: absolute;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #aura-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    transition: all 0.3s;
+    text-shadow: 0 0 30px currentColor;
+  }
+
+  #aura-rarity {
+    font-size: 14px;
+    letter-spacing: 3px;
+    opacity: 0.7;
+    margin-top: 4px;
+    font-weight: 600;
+  }
+
+  #aura-odds {
+    font-size: 12px;
+    opacity: 0.5;
+    margin-top: 2px;
+    font-family: 'Orbitron', monospace;
+  }
+
+  /* Roll Animation Overlay */
+  #roll-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+  }
+
+  #roll-overlay.show { display: flex; }
+
+  .roll-result-box {
+    text-align: center;
+    animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  @keyframes popIn {
+    from { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+    to { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+
+  .result-aura-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 56px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    animation: glowPulse 1s ease-in-out infinite alternate;
+  }
+
+  .result-rarity {
+    font-size: 18px;
+    letter-spacing: 4px;
+    opacity: 0.8;
+    margin: 8px 0;
+  }
+
+  .result-odds { font-size: 14px; opacity: 0.5; font-family: 'Orbitron', monospace; }
+
+  @keyframes glowPulse {
+    from { text-shadow: 0 0 20px currentColor, 0 0 40px currentColor; }
+    to { text-shadow: 0 0 40px currentColor, 0 0 80px currentColor, 0 0 120px currentColor; }
+  }
+
+  .new-badge {
+    display: inline-block;
+    background: var(--gold);
+    color: #000;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 3px 12px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+
+  /* Left Panel - Inventory */
+  #inv-panel {
+    position: absolute;
+    left: 16px;
+    top: 75px;
+    bottom: 220px;
+    width: 240px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    pointer-events: all;
+    backdrop-filter: blur(20px);
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--gold);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  #inv-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.1) transparent;
+  }
+
+  .inv-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+  }
+
+  .inv-item:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+  .inv-item.equipped { background: rgba(255,215,0,0.08); border-color: rgba(255,215,0,0.3); }
+
+  .inv-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 8px currentColor;
+  }
+
+  .inv-info { flex: 1; min-width: 0; }
+  .inv-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .inv-rarity { font-size: 10px; opacity: 0.5; letter-spacing: 1px; }
+  .inv-count {
+    font-size: 11px;
+    color: var(--gold);
+    font-family: 'Orbitron', monospace;
+    flex-shrink: 0;
+  }
+
+  /* Right Panel - Shop */
+  #shop-panel {
+    position: absolute;
+    right: 16px;
+    top: 75px;
+    bottom: 220px;
+    width: 260px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    pointer-events: all;
+    backdrop-filter: blur(20px);
+  }
+
+  .shop-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .shop-tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 11px;
+    letter-spacing: 1px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.4);
+    transition: all 0.2s;
+    border-bottom: 2px solid transparent;
+  }
+
+  .shop-tab:hover { color: rgba(255,255,255,0.7); }
+  .shop-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+  #shop-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.1) transparent;
+  }
+
+  .shop-item {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shop-item::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent, rgba(255,255,255,0.02));
+    pointer-events: none;
+  }
+
+  .shop-item:hover { border-color: rgba(255,215,0,0.4); background: rgba(255,215,0,0.05); transform: translateX(-2px); }
+
+  .shop-item-name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .shop-item-desc { font-size: 11px; opacity: 0.5; margin-bottom: 8px; line-height: 1.4; }
+  .shop-item-cost {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--gold);
+    font-family: 'Orbitron', monospace;
+    font-weight: 700;
+  }
+
+  .shop-item-cost .title-tag {
+    background: rgba(255,215,0,0.15);
+    border: 1px solid rgba(255,215,0,0.3);
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 10px;
+  }
+
+  .luck-badge {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: linear-gradient(135deg, #00e5ff, #0080ff);
+    color: #000;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 8px;
+    letter-spacing: 1px;
+  }
+
+  /* Titles panel (bottom of shop) */
+  #titles-display {
+    padding: 10px;
+    border-top: 1px solid var(--border);
+    max-height: 100px;
+    overflow-y: auto;
+  }
+
+  .titles-label { font-size: 10px; opacity: 0.4; letter-spacing: 2px; margin-bottom: 6px; }
+
+  .title-chip {
+    display: inline-block;
+    background: rgba(255,215,0,0.1);
+    border: 1px solid rgba(255,215,0,0.25);
+    color: var(--gold);
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 10px;
+    margin: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .title-chip:hover { background: rgba(255,215,0,0.2); }
+  .title-chip.equipped { background: rgba(255,215,0,0.3); border-color: var(--gold); }
+
+  /* Toast Notification */
+  #toast {
+    position: fixed;
+    bottom: 220px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(0,0,0,0.9);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    z-index: 200;
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Flex/Chat Area */
+  #flex-area {
+    position: absolute;
+    bottom: 10px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    gap: 8px;
+    pointer-events: all;
+    justify-content: center;
+  }
+
+  #flex-btn {
+    background: linear-gradient(135deg, #ff0080, #ff6600);
+    border: none;
+    color: #fff;
+    padding: 10px 28px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px rgba(255,0,128,0.4);
+  }
+
+  #flex-btn:hover { transform: scale(1.05); box-shadow: 0 6px 30px rgba(255,0,128,0.6); }
+
+  /* Flex Messages */
+  #flex-msgs {
+    position: absolute;
+    bottom: 200px;
+    left: 280px;
+    right: 290px;
+    pointer-events: none;
+    overflow: hidden;
+    height: 120px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 4px;
+  }
+
+  .flex-msg {
+    background: rgba(0,0,0,0.7);
+    border-left: 3px solid;
+    padding: 6px 12px;
+    border-radius: 0 8px 8px 0;
+    font-size: 12px;
+    animation: slideInLeft 0.3s ease, fadeOut 0.5s 2.5s ease forwards;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  @keyframes slideInLeft {
+    from { transform: translateX(-30px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  /* Stats/Luck display */
+  #luck-display {
+    position: absolute;
+    top: 75px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+
+  .luck-val {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    color: var(--cyan);
+    letter-spacing: 2px;
+  }
+
+  /* Rolling animation */
+  @keyframes rollSpin {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(180deg) scale(1.1); }
+    100% { transform: rotate(360deg) scale(1); }
+  }
+
+  #rollbtn.rolling { animation: rollSpin 0.1s linear infinite !important; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  /* Rarity colors */
+  .rarity-common { color: #b0b0b0; }
+  .rarity-uncommon { color: #44ff88; }
+  .rarity-rare { color: #4488ff; }
+  .rarity-epic { color: #cc44ff; }
+  .rarity-legendary { color: #ff8800; }
+  .rarity-mythical { color: #ff2244; }
+  .rarity-divine { color: #ffd700; }
+  .rarity-celestial { color: #00e5ff; }
+  .rarity-prismatic { color: #ff69b4; }
+  .rarity-secret { color: #ffffff; }
+
+  .particles-container {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+    overflow: hidden;
+  }
+
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: floatUp linear forwards;
+  }
+
+  @keyframes floatUp {
+    from { transform: translateY(0) scale(1); opacity: 0.8; }
+    to { transform: translateY(-100vh) scale(0); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas3d"></canvas>
+<div class="particles-container" id="particles"></div>
+
+<div id="hud">
+  <!-- Top Bar -->
+  <div id="topbar">
+    <div class="logo">SOLS RNG</div>
+    <div class="stat-group">
+      <div class="stat-pill"><span class="icon">🎲</span><span>Rolls:</span><span class="val" id="roll-count">0</span></div>
+      <div class="stat-pill"><span class="icon">🍀</span><span>Luck:</span><span class="val" id="luck-val">1x</span></div>
+      <div class="stat-pill"><span class="icon">📜</span><span>Titles:</span><span class="val" id="title-count">0</span></div>
+      <div class="stat-pill"><span class="icon">✨</span><span>Unique:</span><span class="val" id="unique-count">0</span></div>
+    </div>
+  </div>
+
+  <!-- Luck display under title -->
+  <div id="luck-display">
+    <div class="luck-val" id="active-luck-label">Luck Multiplier: <span id="luck-mult">1x</span></div>
+  </div>
+
+  <!-- Current Aura Display -->
+  <div id="aura-display">
+    <div style="margin-bottom:8px;"></div>
+    <div id="aura-name" class="rarity-common">—</div>
+    <div id="aura-rarity">NO AURA</div>
+    <div id="aura-odds">Roll to begin!</div>
+  </div>
+
+  <!-- Inventory Panel -->
+  <div id="inv-panel">
+    <div class="panel-header">
+      <span>INVENTORY</span>
+      <span style="opacity:0.5;font-size:10px;" id="inv-header-count">0 auras</span>
+    </div>
+    <div id="inv-list"></div>
+  </div>
+
+  <!-- Shop Panel -->
+  <div id="shop-panel">
+    <div class="panel-header"><span>⚡ UPGRADE SHOP</span></div>
+    <div class="shop-tabs">
+      <div class="shop-tab active" onclick="switchTab('luck')">LUCK BOOSTS</div>
+      <div class="shop-tab" onclick="switchTab('aura')">AURA PERKS</div>
+    </div>
+    <div id="shop-list"></div>
+    <div id="titles-display">
+      <div class="titles-label">YOUR TITLES</div>
+      <div id="title-chips"></div>
+    </div>
+  </div>
+
+  <!-- Flex Messages -->
+  <div id="flex-msgs"></div>
+
+  <!-- Roll Area -->
+  <div id="rollarea">
+    <button id="rollbtn" onclick="doRoll()">
+      <div class="btn-inner">
+        <div class="roll-text">ROLL</div>
+        <div class="roll-sub">CLICK TO SPIN</div>
+      </div>
+    </button>
+    <div id="autoroll-wrap">
+      <button class="auto-btn" id="auto-btn" onclick="toggleAuto()">AUTO ROLL</button>
+      <button class="auto-btn" onclick="doFlex()">🔥 FLEX</button>
+    </div>
+  </div>
+
+  <!-- Bottom flex bar -->
+  <div id="flex-area" style="display:none;"></div>
+</div>
+
+<!-- Roll Overlay -->
+<div id="roll-overlay">
+  <div class="roll-result-box">
+    <div class="new-badge" id="new-badge" style="display:none;">NEW!</div>
+    <div class="result-aura-name" id="result-name">—</div>
+    <div class="result-rarity" id="result-rarity">—</div>
+    <div class="result-odds" id="result-odds">1 in 1</div>
+    <div style="margin-top:16px;font-size:13px;opacity:0.4;">CLICK ANYWHERE TO CONTINUE</div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ============================================================
+// AURA DATA - 30 Auras with rarities, odds, colors, effects
+// ============================================================
+const AURAS = [
+  // COMMON (1 in 2 - 1 in 10)
+  { name: "Stone", rarity: "Common", odds: 2, color: "#888888", glow: "#aaaaaa", particles: "rock", effect: "Rough stone dust swirls around you", title: "The Rocky" },
+  { name: "Wind", rarity: "Common", odds: 3, color: "#aaddff", glow: "#cceeff", particles: "wind", effect: "Gentle breezes ripple your aura", title: "Breeze Rider" },
+  { name: "Ember", rarity: "Common", odds: 5, color: "#ff6622", glow: "#ff8844", particles: "fire", effect: "Tiny embers float around you", title: "Ember Born" },
+  { name: "Frost", rarity: "Common", odds: 8, color: "#88ccff", glow: "#aaddff", particles: "frost", effect: "Ice crystals form in the air near you", title: "Cold Touch" },
+  { name: "Mud", rarity: "Common", odds: 10, color: "#8B6914", glow: "#aa8832", particles: "mud", effect: "Murky earth energy surrounds you", title: "Mudwalker" },
+
+  // UNCOMMON (1 in 20 - 1 in 100)
+  { name: "Leaf", rarity: "Uncommon", odds: 20, color: "#44cc66", glow: "#55ee77", particles: "leaf", effect: "Leaves spiral around your body", title: "Forest Walker" },
+  { name: "Thunder", rarity: "Uncommon", odds: 35, color: "#ffdd00", glow: "#ffff44", particles: "spark", effect: "Electric sparks crackle off your skin", title: "Spark" },
+  { name: "Ocean", rarity: "Uncommon", odds: 50, color: "#0066ff", glow: "#2288ff", particles: "wave", effect: "Waves of water energy flow around you", title: "Tide Caller" },
+  { name: "Sand", rarity: "Uncommon", odds: 75, color: "#d4aa70", glow: "#e8c88a", particles: "sand", effect: "Desert sand streams around your aura", title: "Dune Wanderer" },
+  { name: "Shadow", rarity: "Uncommon", odds: 100, color: "#4422aa", glow: "#6644cc", particles: "shadow", effect: "Dark wisps coil around your silhouette", title: "Shade" },
+
+  // RARE (1 in 250 - 1 in 1000)
+  { name: "Crystal", rarity: "Rare", odds: 250, color: "#88ffee", glow: "#aaffdd", particles: "crystal", effect: "Prismatic crystal shards orbit your body", title: "Crystal Keeper" },
+  { name: "Lava", rarity: "Rare", odds: 400, color: "#ff3300", glow: "#ff6600", particles: "lava", effect: "Molten rock and ash erupt from your aura", title: "Magma Core" },
+  { name: "Aurora", rarity: "Rare", odds: 600, color: "#00ffcc", glow: "#00eebb", particles: "aurora", effect: "Northern lights shimmer around you", title: "Aurora Chaser" },
+  { name: "Storm", rarity: "Rare", odds: 800, color: "#6688aa", glow: "#8899bb", particles: "storm", effect: "A miniature storm follows your every step", title: "Stormborn" },
+  { name: "Venom", rarity: "Rare", odds: 1000, color: "#55ff22", glow: "#77ff44", particles: "venom", effect: "Toxic green gas pours from your presence", title: "Serpent" },
+
+  // EPIC (1 in 2500 - 1 in 10000)
+  { name: "Galaxy", rarity: "Epic", odds: 2500, color: "#8844ff", glow: "#aa66ff", particles: "galaxy", effect: "Stars and nebulae swirl in your wake", title: "Star Gazer" },
+  { name: "Sakura", rarity: "Epic", odds: 4000, color: "#ff88bb", glow: "#ffaacc", particles: "sakura", effect: "Cherry blossom petals rain around you", title: "Blossom" },
+  { name: "Void", rarity: "Epic", odds: 6000, color: "#220044", glow: "#440088", particles: "void", effect: "Reality warps and tears near your presence", title: "Void Walker" },
+  { name: "Phoenix", rarity: "Epic", odds: 8000, color: "#ff4400", glow: "#ff6622", particles: "phoenix", effect: "Fiery wings of rebirth flare behind you", title: "Reborn" },
+  { name: "Rainbow", rarity: "Epic", odds: 10000, color: "#ff69b4", glow: "#ffb6c1", particles: "rainbow", effect: "All colors of the spectrum dance around you", title: "Chromatic" },
+
+  // LEGENDARY (1 in 25000 - 1 in 100000)
+  { name: "Solar", rarity: "Legendary", odds: 25000, color: "#ffaa00", glow: "#ffcc00", particles: "solar", effect: "The power of a star radiates from your core", title: "Solar Child" },
+  { name: "Lunar", rarity: "Legendary", odds: 40000, color: "#c8a2c8", glow: "#ddbfdd", particles: "lunar", effect: "Moonlight bathes everything you touch", title: "Moonbound" },
+  { name: "Glacier", rarity: "Legendary", odds: 65000, color: "#aaeeff", glow: "#ccffff", particles: "glacier", effect: "Ancient ice energy freezes the air itself", title: "Permafrost" },
+  { name: "Inferno", rarity: "Legendary", odds: 100000, color: "#ff1100", glow: "#ff3300", particles: "inferno", effect: "Hellfire erupts in columns around you", title: "The Inferno" },
+
+  // MYTHICAL (1 in 250k - 1 in 1M)
+  { name: "Cosmic", rarity: "Mythical", odds: 250000, color: "#ff44aa", glow: "#ff88cc", particles: "cosmic", effect: "The fabric of the cosmos wraps around your soul", title: "Cosmic Being" },
+  { name: "Time", rarity: "Mythical", odds: 500000, color: "#00ffee", glow: "#44ffff", particles: "time", effect: "Temporal echoes of yourself trail behind you", title: "Timeless" },
+  { name: "Antimatter", rarity: "Mythical", odds: 1000000, color: "#ffffff", glow: "#aaaaff", particles: "anti", effect: "Matter dissolves and reforms near your presence", title: "Unmatter" },
+
+  // DIVINE (1 in 2.5M - 1 in 10M)
+  { name: "Divine", rarity: "Divine", odds: 2500000, color: "#ffd700", glow: "#ffee44", particles: "divine", effect: "Holy light pours from your every pore", title: "The Divine" },
+  { name: "Seraphim", rarity: "Divine", odds: 10000000, color: "#fffacd", glow: "#ffffff", particles: "seraphim", effect: "Six wings of pure light unfurl behind you", title: "Seraph" },
+
+  // SECRET (ultra rare)
+  { name: "NULL", rarity: "Secret", odds: 100000000, color: "#ff0000", glow: "#ff0000", particles: "null", effect: "Error: Aura not found. You shouldn't exist.", title: "ERROR" },
+  { name: "Oblivion", rarity: "Secret", odds: 999999999, color: "#000000", glow: "#111111", particles: "oblivion", effect: "Nothing. Everything. The end and the beginning.", title: "Oblivion" },
+];
+
+const RARITY_COLORS = {
+  "Common": "#b0b0b0",
+  "Uncommon": "#44ff88",
+  "Rare": "#4488ff",
+  "Epic": "#cc44ff",
+  "Legendary": "#ff8800",
+  "Mythical": "#ff2244",
+  "Divine": "#ffd700",
+  "Celestial": "#00e5ff",
+  "Secret": "#ffffff"
+};
+
+const RARITY_ORDER = ["Common","Uncommon","Rare","Epic","Legendary","Mythical","Divine","Secret"];
+
+// ============================================================
+// SHOP DATA
+// ============================================================
+const LUCK_UPGRADES = [
+  { id: "lucky1", name: "Lucky Beginner", desc: "Your first step towards fate. +10% luck.", cost: 1, costType: "title", luckAdd: 0.1, icon: "🍀" },
+  { id: "lucky2", name: "Fortune's Favorite", desc: "Fortune smiles upon you. +25% luck.", cost: 3, costType: "title", luckAdd: 0.25, icon: "🎰" },
+  { id: "lucky3", name: "Seeker's Blessing", desc: "Ancient blessing from the seeker. +50% luck.", cost: 5, costType: "title", luckAdd: 0.5, icon: "🙏" },
+  { id: "lucky4", name: "Golden Touch", desc: "Everything you touch turns golden. +1x luck.", cost: 10, costType: "title", luckAdd: 1, icon: "✨" },
+  { id: "lucky5", name: "Star Alignment", desc: "The stars align for you. +2x luck.", cost: 20, costType: "title", luckAdd: 2, icon: "⭐" },
+  { id: "lucky6", name: "Fate's Chosen", desc: "Fate itself bends to your will. +5x luck.", cost: 50, costType: "title", luckAdd: 5, icon: "🌟" },
+  { id: "lucky7", name: "Cosmic Favor", desc: "The cosmos grants you favor. +10x luck.", cost: 100, costType: "title", luckAdd: 10, icon: "🌌" },
+  { id: "lucky8", name: "Omniluck", desc: "Maximum luck attained. +25x luck.", cost: 250, costType: "title", luckAdd: 25, icon: "💎" },
+];
+
+const AURA_PERKS = [
+  { id: "perk1", name: "Aura Amplifier", desc: "Your aura visuals are 2x more intense.", cost: 2, costType: "title", icon: "💫", perk: "amplify" },
+  { id: "perk2", name: "Dual Aura", desc: "Hold 2 auras simultaneously.", cost: 5, costType: "title", icon: "🔀", perk: "dual" },
+  { id: "perk3", name: "Aura Trail", desc: "Leave a glowing trail as you move.", cost: 3, costType: "title", icon: "👣", perk: "trail" },
+  { id: "perk4", name: "Aura Shield", desc: "Your aura forms a protective barrier.", cost: 8, costType: "title", icon: "🛡️", perk: "shield" },
+  { id: "perk5", name: "Luck Cascade", desc: "Rare rolls give bonus luck temporarily.", cost: 15, costType: "title", icon: "🌊", perk: "cascade" },
+  { id: "perk6", name: "Aura Mastery", desc: "Unlock secret aura effects.", cost: 40, costType: "title", icon: "👑", perk: "mastery" },
+];
+
+// ============================================================
+// GAME STATE
+// ============================================================
+let state = {
+  rolls: 0,
+  luck: 1,
+  titles: 0,
+  inventory: {},       // aurName: count
+  currentAura: null,
+  uniqueCount: 0,
+  purchasedUpgrades: new Set(),
+  equippedTitles: new Set(),
+  autoRolling: false,
+  autoInterval: null,
+  currentTab: 'luck',
+  perks: new Set(),
+  totalTitlesEarned: 0,
+};
+
+// ============================================================
+// 3D Scene Setup
+// ============================================================
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(0, 1.5, 6);
+camera.lookAt(0, 1, 0);
+
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas3d'), antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+
+// Background gradient
+scene.background = new THREE.Color('#0a0a0f');
+scene.fog = new THREE.FogExp2('#0a0a0f', 0.05);
+
+// Ambient + directional light
+const ambient = new THREE.AmbientLight(0x111122, 2);
+scene.add(ambient);
+const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+dirLight.position.set(5, 10, 5);
+dirLight.castShadow = true;
+scene.add(dirLight);
+
+// Point light (aura color)
+const auraLight = new THREE.PointLight(0xffffff, 3, 15);
+auraLight.position.set(0, 2, 0);
+scene.add(auraLight);
+
+// Floor
+const floorGeo = new THREE.PlaneGeometry(100, 100);
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x0a0a15,
+  roughness: 0.8,
+  metalness: 0.2,
+});
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// Grid lines
+const gridHelper = new THREE.GridHelper(40, 40, 0x111133, 0x111133);
+scene.add(gridHelper);
+
+// Player character (capsule-ish)
+const playerGroup = new THREE.Group();
+scene.add(playerGroup);
+
+// Body
+const bodyGeo = new THREE.CylinderGeometry(0.4, 0.35, 1.2, 12);
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2244aa, roughness: 0.5, metalness: 0.3 });
+const body = new THREE.Mesh(bodyGeo, bodyMat);
+body.position.y = 1.1;
+body.castShadow = true;
+playerGroup.add(body);
+
+// Head
+const headGeo = new THREE.SphereGeometry(0.35, 12, 12);
+const headMat = new THREE.MeshStandardMaterial({ color: 0xffddbb, roughness: 0.6 });
+const head = new THREE.Mesh(headGeo, headMat);
+head.position.y = 2.0;
+head.castShadow = true;
+playerGroup.add(head);
+
+// Legs
+const legGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.9, 8);
+const legMat = new THREE.MeshStandardMaterial({ color: 0x1a1a44 });
+const legL = new THREE.Mesh(legGeo, legMat);
+legL.position.set(-0.2, 0.45, 0);
+playerGroup.add(legL);
+const legR = new THREE.Mesh(legGeo, legMat);
+legR.position.set(0.2, 0.45, 0);
+playerGroup.add(legR);
+
+// Arms
+const armGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.8, 8);
+const armMat = new THREE.MeshStandardMaterial({ color: 0x2244aa });
+const armL = new THREE.Mesh(armGeo, armMat);
+armL.position.set(-0.6, 1.1, 0);
+armL.rotation.z = Math.PI / 6;
+playerGroup.add(armL);
+const armR = new THREE.Mesh(armGeo, armMat);
+armR.position.set(0.6, 1.1, 0);
+armR.rotation.z = -Math.PI / 6;
+playerGroup.add(armR);
+
+// Aura effect particles (Three.js)
+let auraParticles = null;
+let auraRing = null;
+let auraGlow = null;
+
+function clearAuraEffects() {
+  if (auraParticles) { scene.remove(auraParticles); auraParticles = null; }
+  if (auraRing) { scene.remove(auraRing); auraRing = null; }
+  if (auraGlow) { scene.remove(auraGlow); auraGlow = null; }
+}
+
+function applyAuraEffect(aura) {
+  clearAuraEffects();
+  if (!aura) return;
+
+  const col = new THREE.Color(aura.glow);
+  auraLight.color.set(aura.glow);
+
+  // Glowing ring around player
+  const ringGeo = new THREE.TorusGeometry(1.2, 0.06, 8, 32);
+  const ringMat = new THREE.MeshBasicMaterial({ color: col });
+  auraRing = new THREE.Mesh(ringGeo, ringMat);
+  auraRing.position.y = 0.05;
+  scene.add(auraRing);
+
+  // Particles
+  const count = 120;
+  const posArr = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const r = 0.8 + Math.random() * 1.2;
+    posArr[i*3] = Math.cos(angle) * r;
+    posArr[i*3+1] = Math.random() * 3.5;
+    posArr[i*3+2] = Math.sin(angle) * r;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+  const mat = new THREE.PointsMaterial({ color: col, size: 0.08, transparent: true, opacity: 0.8 });
+  auraParticles = new THREE.Points(geo, mat);
+  scene.add(auraParticles);
+}
+
+// Background floating orbs
+const bgOrbs = [];
+for (let i = 0; i < 20; i++) {
+  const geo = new THREE.SphereGeometry(0.1 + Math.random() * 0.2, 6, 6);
+  const mat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color().setHSL(Math.random(), 0.8, 0.5),
+    transparent: true,
+    opacity: 0.3
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(
+    (Math.random() - 0.5) * 30,
+    Math.random() * 5,
+    (Math.random() - 0.5) * 30
+  );
+  mesh.userData = { speed: 0.001 + Math.random() * 0.003, angle: Math.random() * Math.PI * 2 };
+  scene.add(mesh);
+  bgOrbs.push(mesh);
+}
+
+// Animation loop
+let time = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  time += 0.016;
+
+  // Bob player
+  playerGroup.position.y = Math.sin(time * 1.5) * 0.05;
+  playerGroup.rotation.y = Math.sin(time * 0.3) * 0.15;
+
+  // Anim aura
+  if (auraRing) {
+    auraRing.rotation.x = time * 0.8;
+    auraRing.rotation.z = time * 0.5;
+    auraRing.scale.setScalar(1 + Math.sin(time * 2) * 0.05);
+  }
+
+  if (auraParticles) {
+    const pos = auraParticles.geometry.attributes.position.array;
+    for (let i = 0; i < pos.length / 3; i++) {
+      pos[i*3+1] += 0.01;
+      if (pos[i*3+1] > 3.8) pos[i*3+1] = 0;
+      const angle = Math.atan2(pos[i*3+2], pos[i*3]) + 0.01;
+      const r = Math.sqrt(pos[i*3]*pos[i*3] + pos[i*3+2]*pos[i*3+2]);
+      pos[i*3] = Math.cos(angle) * r;
+      pos[i*3+2] = Math.sin(angle) * r;
+    }
+    auraParticles.geometry.attributes.position.needsUpdate = true;
+  }
+
+  // Pulse aura light
+  auraLight.intensity = 3 + Math.sin(time * 2) * 1;
+
+  // Camera gentle sway
+  camera.position.x = Math.sin(time * 0.1) * 0.3;
+  camera.lookAt(0, 1.5, 0);
+
+  // BG orbs float
+  bgOrbs.forEach(orb => {
+    orb.userData.angle += orb.userData.speed;
+    orb.position.y += Math.sin(orb.userData.angle) * 0.005;
+  });
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ============================================================
+// ROLLING LOGIC
+// ============================================================
+function weightedRoll() {
+  // Build total weight with luck multiplier
+  const luckMult = state.luck;
+
+  // For each aura, effective chance = (1/odds) * luckMult, capped at 1
+  // Normalize
+  let weights = AURAS.map(a => {
+    let w = (1 / a.odds) * luckMult;
+    return Math.min(w, 1);
+  });
+
+  let total = weights.reduce((a,b) => a+b, 0);
+  let r = Math.random() * total;
+  let cum = 0;
+  for (let i = 0; i < AURAS.length; i++) {
+    cum += weights[i];
+    if (r <= cum) return AURAS[i];
+  }
+  return AURAS[0];
+}
+
+let isRolling = false;
+let autoRollCount = 0;
+
+function doRoll() {
+  if (isRolling) return;
+  isRolling = true;
+
+  const btn = document.getElementById('rollbtn');
+  btn.classList.add('rolling');
+
+  // Quick spin animation
+  let spins = 0;
+  const maxSpins = 8 + Math.floor(Math.random() * 8);
+
+  const spinInterval = setInterval(() => {
+    spins++;
+    if (spins >= maxSpins) {
+      clearInterval(spinInterval);
+      btn.classList.remove('rolling');
+      const aura = weightedRoll();
+      showResult(aura);
+      isRolling = false;
+    }
+  }, 60);
+}
+
+function showResult(aura) {
+  state.rolls++;
+  document.getElementById('roll-count').textContent = fmtNum(state.rolls);
+
+  const isNew = !state.inventory[aura.name];
+  if (!state.inventory[aura.name]) {
+    state.inventory[aura.name] = 0;
+    state.uniqueCount++;
+    document.getElementById('unique-count').textContent = state.uniqueCount;
+    // Give title for discovering new aura
+    state.titles++;
+    state.totalTitlesEarned++;
+    document.getElementById('title-count').textContent = state.titles;
+    updateTitleChips();
+  }
+  state.inventory[aura.name]++;
+
+  // Update current aura
+  state.currentAura = aura;
+  applyAuraEffect(aura);
+  updateAuraDisplay(aura);
+  updateInventory();
+
+  // Titles earned periodically
+  if (state.rolls % 50 === 0) {
+    state.titles += 1;
+    document.getElementById('title-count').textContent = state.titles;
+    showToast(`📜 +1 Title! You now have ${state.titles} titles.`);
+    updateTitleChips();
+  }
+
+  // Luck cascade perk
+  if (state.perks.has('cascade') && ['Legendary','Mythical','Divine','Secret'].includes(aura.rarity)) {
+    state.luck += 0.5;
+    setTimeout(() => { state.luck = Math.max(state.luck - 0.5, 1); updateLuckDisplay(); }, 30000);
+  }
+
+  // Show overlay for rare+
+  const rarityIdx = RARITY_ORDER.indexOf(aura.rarity);
+  if (rarityIdx >= 2 || isNew) {
+    const overlay = document.getElementById('roll-overlay');
+    const rarCol = RARITY_COLORS[aura.rarity] || '#fff';
+    document.getElementById('result-name').textContent = aura.name;
+    document.getElementById('result-name').style.color = rarCol;
+    document.getElementById('result-rarity').textContent = aura.rarity.toUpperCase();
+    document.getElementById('result-rarity').style.color = rarCol;
+    document.getElementById('result-odds').textContent = `1 in ${fmtNum(aura.odds)}`;
+    document.getElementById('new-badge').style.display = isNew ? 'inline-block' : 'none';
+    overlay.classList.add('show');
+
+    // Particle burst
+    spawnParticles(rarCol, rarityIdx >= 3 ? 80 : 40);
+  }
+}
+
+document.getElementById('roll-overlay').addEventListener('click', () => {
+  document.getElementById('roll-overlay').classList.remove('show');
+});
+
+function updateAuraDisplay(aura) {
+  const nameEl = document.getElementById('aura-name');
+  const rarEl = document.getElementById('aura-rarity');
+  const oddsEl = document.getElementById('aura-odds');
+  const col = RARITY_COLORS[aura.rarity] || '#fff';
+  nameEl.textContent = aura.name.toUpperCase();
+  nameEl.style.color = col;
+  nameEl.style.textShadow = `0 0 30px ${col}`;
+  rarEl.textContent = aura.rarity.toUpperCase();
+  rarEl.style.color = col;
+  oddsEl.textContent = `1 in ${fmtNum(aura.odds)} • ${aura.effect}`;
+}
+
+function updateInventory() {
+  const list = document.getElementById('inv-list');
+  list.innerHTML = '';
+  // Sort by rarity desc
+  const entries = Object.entries(state.inventory);
+  entries.sort((a,b) => {
+    const aa = AURAS.find(x=>x.name===a[0]);
+    const bb = AURAS.find(x=>x.name===b[0]);
+    return RARITY_ORDER.indexOf(bb.rarity) - RARITY_ORDER.indexOf(aa.rarity);
+  });
+
+  document.getElementById('inv-header-count').textContent = `${entries.length} auras`;
+
+  entries.forEach(([name, count]) => {
+    const aura = AURAS.find(x=>x.name===name);
+    if (!aura) return;
+    const col = RARITY_COLORS[aura.rarity] || '#fff';
+    const equipped = state.currentAura && state.currentAura.name === name;
+    const div = document.createElement('div');
+    div.className = 'inv-item' + (equipped ? ' equipped' : '');
+    div.innerHTML = `
+      <div class="inv-dot" style="background:${col};color:${col};"></div>
+      <div class="inv-info">
+        <div class="inv-name">${name}</div>
+        <div class="inv-rarity">${aura.rarity.toUpperCase()}</div>
+      </div>
+      <div class="inv-count">x${count}</div>
+    `;
+    div.onclick = () => {
+      state.currentAura = aura;
+      applyAuraEffect(aura);
+      updateAuraDisplay(aura);
+      updateInventory();
+    };
+    list.appendChild(div);
+  });
+}
+
+function updateLuckDisplay() {
+  const lx = state.luck >= 1000 ? fmtNum(state.luck)+'x' : state.luck.toFixed(state.luck < 10 ? 1 : 0)+'x';
+  document.getElementById('luck-val').textContent = lx;
+  document.getElementById('luck-mult').textContent = lx;
+}
+
+// ============================================================
+// SHOP
+// ============================================================
+function switchTab(tab) {
+  state.currentTab = tab;
+  document.querySelectorAll('.shop-tab').forEach((t,i) => {
+    t.classList.toggle('active', (i===0 && tab==='luck') || (i===1 && tab==='aura'));
+  });
+  renderShop();
+}
+
+function renderShop() {
+  const list = document.getElementById('shop-list');
+  list.innerHTML = '';
+  const items = state.currentTab === 'luck' ? LUCK_UPGRADES : AURA_PERKS;
+  items.forEach(item => {
+    const owned = state.purchasedUpgrades.has(item.id);
+    const canAfford = state.titles >= item.cost;
+    const div = document.createElement('div');
+    div.className = 'shop-item';
+    div.style.opacity = owned ? '0.4' : (canAfford ? '1' : '0.6');
+    div.style.borderColor = owned ? '#44ff8840' : (canAfford ? 'rgba(255,215,0,0.2)' : 'rgba(255,255,255,0.06)');
+
+    const bonusText = item.luckAdd ? `+${item.luckAdd >= 1 ? item.luckAdd+'x' : (item.luckAdd*100)+'%'} Luck` : item.perk?.toUpperCase();
+
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <span style="font-size:18px;">${item.icon}</span>
+        <div class="shop-item-name">${item.name}</div>
+      </div>
+      <div class="shop-item-desc">${item.desc}</div>
+      <div class="shop-item-cost">
+        <span class="title-tag">📜 ${item.cost} Title${item.cost !== 1 ? 's' : ''}</span>
+        ${owned ? '<span style="color:#44ff88;font-size:11px;">✓ OWNED</span>' : ''}
+      </div>
+      <div class="luck-badge">${bonusText}</div>
+    `;
+
+    if (!owned) {
+      div.onclick = () => buyItem(item);
+      div.style.cursor = 'pointer';
+    } else {
+      div.style.cursor = 'default';
+    }
+
+    list.appendChild(div);
+  });
+}
+
+function buyItem(item) {
+  if (state.purchasedUpgrades.has(item.id)) { showToast('Already owned!'); return; }
+  if (state.titles < item.cost) { showToast(`Need ${item.cost} titles! You have ${state.titles}.`); return; }
+  state.titles -= item.cost;
+  state.purchasedUpgrades.add(item.id);
+  document.getElementById('title-count').textContent = state.titles;
+
+  if (item.luckAdd) {
+    state.luck += item.luckAdd;
+    updateLuckDisplay();
+    showToast(`🍀 Luck increased! Now ${state.luck.toFixed(1)}x`);
+  }
+  if (item.perk) {
+    state.perks.add(item.perk);
+    showToast(`✨ Perk unlocked: ${item.name}!`);
+  }
+
+  renderShop();
+  spawnParticles('#ffd700', 30);
+}
+
+function updateTitleChips() {
+  const chips = document.getElementById('title-chips');
+  chips.innerHTML = '';
+  // Get all discovered aura titles
+  Object.keys(state.inventory).forEach(name => {
+    const aura = AURAS.find(a=>a.name===name);
+    if (!aura) return;
+    const chip = document.createElement('div');
+    chip.className = 'title-chip';
+    chip.textContent = aura.title;
+    chip.onclick = () => chip.classList.toggle('equipped');
+    chips.appendChild(chip);
+  });
+}
+
+// ============================================================
+// AUTO ROLL
+// ============================================================
+function toggleAuto() {
+  state.autoRolling = !state.autoRolling;
+  const btn = document.getElementById('auto-btn');
+  btn.classList.toggle('active', state.autoRolling);
+  btn.textContent = state.autoRolling ? '⏹ STOP AUTO' : 'AUTO ROLL';
+
+  if (state.autoRolling) {
+    state.autoInterval = setInterval(() => {
+      if (!isRolling) doRoll();
+    }, 800);
+  } else {
+    clearInterval(state.autoInterval);
+  }
+}
+
+// ============================================================
+// FLEX
+// ============================================================
+const FLEX_MSGS = [
+  (a,p) => `${p} just got ${a.name} (1 in ${fmtNum(a.odds)})! 🔥`,
+  (a,p) => `Look at ${p}'s ${a.name} aura... goals 😤`,
+  (a,p) => `No way ${p} rolled ${a.name}!! That's insane`,
+  (a,p) => `${p}: my ${a.name} aura is on another level 💎`,
+  (a,p) => `${p} is flexing ${a.name} on everyone rn`,
+  (a,p) => `WAIT ${p} ACTUALLY HAS ${a.name.toUpperCase()}?!?`,
+];
+
+const FAKE_PLAYERS = ['xXAuraLord99Xx','RNG_God','LuckyMike','AuraMaster','Zephyr','NovaBlade','CrystalKing'];
+
+let msgTimeout;
+function doFlex() {
+  if (!state.currentAura) { showToast('Roll an aura first!'); return; }
+  const template = FLEX_MSGS[Math.floor(Math.random() * FLEX_MSGS.length)];
+  const msg = template(state.currentAura, 'YOU');
+  addFlexMsg(msg, RARITY_COLORS[state.currentAura.rarity] || '#fff');
+  showToast('🔥 Flexing your aura!');
+}
+
+function addFlexMsg(text, color) {
+  const container = document.getElementById('flex-msgs');
+  const div = document.createElement('div');
+  div.className = 'flex-msg';
+  div.style.borderColor = color;
+  div.style.color = color;
+  div.textContent = text;
+  container.prepend(div);
+  setTimeout(() => div.remove(), 3200);
+}
+
+// Random flex messages from fake players
+setInterval(() => {
+  if (Math.random() < 0.3) {
+    const aura = AURAS[Math.floor(Math.random() * Math.min(20, AURAS.length))];
+    const player = FAKE_PLAYERS[Math.floor(Math.random() * FAKE_PLAYERS.length)];
+    const template = FLEX_MSGS[Math.floor(Math.random() * FLEX_MSGS.length)];
+    addFlexMsg(template(aura, player), RARITY_COLORS[aura.rarity] || '#fff');
+  }
+}, 4000);
+
+// ============================================================
+// PARTICLES
+// ============================================================
+function spawnParticles(color, count) {
+  const container = document.getElementById('particles');
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const size = 4 + Math.random() * 8;
+    p.style.cssText = `
+      width:${size}px;height:${size}px;
+      background:${color};
+      left:${30+Math.random()*40}%;
+      top:${40+Math.random()*20}%;
+      box-shadow:0 0 ${size*2}px ${color};
+      animation-duration:${1.5+Math.random()*2}s;
+      animation-delay:${Math.random()*0.5}s;
+    `;
+    container.appendChild(p);
+    setTimeout(() => p.remove(), 3500);
+  }
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function fmtNum(n) {
+  if (n >= 1000000000) return (n/1000000000).toFixed(1)+'B';
+  if (n >= 1000000) return (n/1000000).toFixed(1)+'M';
+  if (n >= 1000) return (n/1000).toFixed(1)+'K';
+  return n.toLocaleString();
+}
+
+// Init
+renderShop();
+
+// Welcome toast after delay
+setTimeout(() => {
+  showToast('🎲 Welcome to SOLS RNG! Press ROLL to begin!');
+}, 1000);
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !e.repeat) { e.preventDefault(); doRoll(); }
+});
+</script>
+</body>
+</html>
